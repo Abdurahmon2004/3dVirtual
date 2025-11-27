@@ -18,7 +18,7 @@ import {
   Stack,
   Tooltip,
 } from "@mui/material";
-import { Add, DeleteOutline } from "@mui/icons-material";
+import { Add, DeleteOutline, DeleteSweep, ExpandLess, ExpandMore } from "@mui/icons-material";
 import { useGetBlocksInfinite } from "@/hooks/modules/block";
 import { useGetPlansInfinite } from "@/hooks/modules/plan";
 import { useCreateHomeList } from "@/hooks/modules/home";
@@ -29,6 +29,8 @@ export default function HomeCreate() {
   const [openHome, setOpenHome] = useState(false);
   const [homeCount, setHomeCount] = useState<number | null>(null);
   const [floorCount, setFloorCount] = useState<number>(1);
+
+  const [collapsedFloors, setCollapsedFloors] = useState<number[]>([]);
 
   const [openDrawer, setOpenDrawer] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState<any>(null);
@@ -209,6 +211,53 @@ export default function HomeCreate() {
     );
   };
 
+  const toggleFloorCollapse = (floorNumber: number) => {
+    setCollapsedFloors((prev) =>
+      prev.includes(floorNumber)
+        ? prev.filter((floor) => floor !== floorNumber)
+        : [...prev, floorNumber]
+    );
+  };
+
+  const handleDeleteFloor = (floorNumber: number) => {
+    setFloors((prevFloors) => {
+      const updatedFloors = prevFloors.filter((f) => f.floor !== floorNumber);
+
+      if (selectedFloor?.floor === floorNumber) {
+        setSelectedFloor(null);
+        setSelectedHome(null);
+        setOpenDrawer(false);
+      }
+
+      return updatedFloors;
+    });
+
+    setCollapsedFloors((prev) => prev.filter((f) => f !== floorNumber));
+    setSelectedFloors((prev) => prev.filter((f) => f !== floorNumber));
+    setAllSelected(false);
+  };
+
+  const handleDeleteSelectedFloors = () => {
+    const floorsToDelete = allSelected ? floors.map((f) => f.floor) : selectedFloors;
+
+    if (floorsToDelete.length === 0) return;
+
+    setFloors((prevFloors) =>
+      prevFloors.filter((floor) => !floorsToDelete.includes(floor.floor))
+    );
+
+    setSelectedFloors([]);
+    setSelectedColumns([]);
+    setSelectedHome(null);
+    setSelectedFloor(null);
+    setOpenDrawer(false);
+    setAllSelected(false);
+    setCollapsedFloors((prev) => prev.filter((f) => !floorsToDelete.includes(f)));
+  };
+
+  const collapseAllFloors = () => setCollapsedFloors(floors.map((f) => f.floor));
+  const expandAllFloors = () => setCollapsedFloors([]);
+
   return (
     <>
       <Box flex={3} maxHeight="100vh" overflow="auto" sx={{ background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 35%)", p: 2, borderRadius: 3 }}>
@@ -232,14 +281,41 @@ export default function HomeCreate() {
 
           <Divider sx={{ my: 3 }} />
 
-          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={2}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+            spacing={2}
+          >
             <Stack direction="row" alignItems="center" spacing={1}>
               <Typography fontWeight={600}>Hamma uylarni tanlash</Typography>
               <Checkbox checked={allSelected} onChange={handleAllCheckboxChange} />
             </Stack>
-            <Button onClick={() => handleSave()} variant="contained" color="primary" startIcon={<i className="fa-solid fa-floppy-disk"></i>}>
-              Saqlash
-            </Button>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteSweep />}
+                onClick={handleDeleteSelectedFloors}
+              >
+                Tanlangan qavatlarni o‘chirish
+              </Button>
+              <Button variant="outlined" onClick={collapseAllFloors}>
+                Hammasini yig‘ish
+              </Button>
+              <Button variant="outlined" onClick={expandAllFloors}>
+                Hammasini yoyish
+              </Button>
+              <Button
+                onClick={() => handleSave()}
+                variant="contained"
+                color="primary"
+                startIcon={<i className="fa-solid fa-floppy-disk"></i>}
+              >
+                Saqlash
+              </Button>
+            </Stack>
           </Stack>
         </Paper>
 
@@ -262,7 +338,18 @@ export default function HomeCreate() {
             .slice()
             .sort((a, b) => b.floor - a.floor)
             .map((f) => (
-              <Paper key={f.floor} elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #e2e8f0" }}>
+              <Paper
+                key={f.floor}
+                elevation={0}
+                sx={{
+                  p: 2.5,
+                  borderRadius: 3,
+                  border: "1px solid #e2e8f0",
+                  background: collapsedFloors.includes(f.floor)
+                    ? "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)"
+                    : "white",
+                }}
+              >
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
                     <Typography fontWeight={700} fontSize={18} color="primary">{f.floor}-qavat</Typography>
@@ -270,69 +357,101 @@ export default function HomeCreate() {
                       checked={allSelected || selectedFloors.includes(f.floor)}
                       onChange={(e) => handleFloorCheckboxChange(f.floor, e.target.checked)}
                     />
+                    <IconButton size="small" onClick={() => toggleFloorCollapse(f.floor)}>
+                      {collapsedFloors.includes(f.floor) ? <ExpandMore /> : <ExpandLess />}
+                    </IconButton>
                   </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    {f.homes.length} ta xonadon
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" color="text.secondary">
+                      {f.homes.length} ta xonadon
+                    </Typography>
+                    <Tooltip title="Qavatni o‘chirish">
+                      <IconButton size="small" color="error" onClick={() => handleDeleteFloor(f.floor)}>
+                        <DeleteOutline fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 </Stack>
 
-                <Box display="flex" gap={1.5} flexWrap="wrap">
-                  {f.homes.map((h, idx) => (
-                    <Paper
-                      key={h.id}
-                      component={ButtonBase}
-                      onClick={() => {
-                        setSelectedFloor(f);
-                        setSelectedHome(h);
-                        setOpenDrawer(true);
-                      }}
-                      sx={{
-                        position: "relative",
-                        cursor: "pointer",
-                        width: 170,
-                        p: 1.5,
-                        borderRadius: 2.5,
-                        textAlign: "left",
-                        background: "linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%)",
-                        boxShadow: "0px 10px 30px rgba(15, 23, 42, 0.08)",
-                        border: getHomeBorder(f.floor, h, idx),
-                      }}
-                    >
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography fontSize={13} fontWeight={700} color="#0f172a">
-                          № {h.number || "-"}
+                {!collapsedFloors.includes(f.floor) && (
+                  <Box display="grid" gap={1.5} gridTemplateColumns="repeat(auto-fill, minmax(160px, 1fr))">
+                    {f.homes.map((h, idx) => (
+                      <Paper
+                        key={h.id}
+                        component={ButtonBase}
+                        onClick={() => {
+                          setSelectedFloor(f);
+                          setSelectedHome(h);
+                          setOpenDrawer(true);
+                        }}
+                        sx={{
+                          position: "relative",
+                          cursor: "pointer",
+                          p: 1.5,
+                          borderRadius: 2.5,
+                          textAlign: "left",
+                          background: "linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%)",
+                          boxShadow: "0px 10px 30px rgba(15, 23, 42, 0.08)",
+                          border: getHomeBorder(f.floor, h, idx),
+                          transition: "transform 150ms ease, box-shadow 150ms ease",
+                          '&:hover': {
+                            transform: "translateY(-2px)",
+                            boxShadow: "0px 15px 35px rgba(15, 23, 42, 0.12)",
+                          },
+                        }}
+                      >
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                          <Typography fontSize={13} fontWeight={700} color="#0f172a">
+                            № {h.number || "-"}
+                          </Typography>
+                          <Tooltip title="Uy o‘chirish">
+                            <IconButton
+                              size="small"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDeleteHome(f.floor, h.id);
+                              }}
+                            >
+                              <DeleteOutline fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                        <Typography fontSize={12} color="#0f172a" fontWeight={600}>
+                          {h.number_of_rooms || 0} xonali
                         </Typography>
-                        <Tooltip title="Uy o‘chirish">
-                          <IconButton
-                            size="small"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDeleteHome(f.floor, h.id);
-                            }}
+                        <Typography fontSize={12} color="#475569">
+                          {h.square || 0} m²
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} mt={1.5} flexWrap="wrap">
+                          <Box
+                            px={1}
+                            py={0.5}
+                            borderRadius={1}
+                            bgcolor={h.status === "sold" ? "#fee2e2" : "#e0f2fe"}
+                            color={h.status === "sold" ? "#991b1b" : "#0369a1"}
+                            fontSize={11}
+                            fontWeight={700}
                           >
-                            <DeleteOutline fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                      <Typography fontSize={12} color="#0f172a" fontWeight={600}>
-                        {h.number_of_rooms || 0} xonali
-                      </Typography>
-                      <Typography fontSize={12} color="#475569">
-                        {h.square || 0} m²
-                      </Typography>
-                      <Stack direction="row" spacing={0.5} mt={1.5}>
-                        <Box px={1} py={0.5} borderRadius={1} bgcolor="#e0f2fe" color="#0369a1" fontSize={11} fontWeight={700}>
-                          {h.status === "sold" ? "Sotilgan" : "Bo‘sh"}
-                        </Box>
-                        {h.is_repaired && (
-                          <Box px={1} py={0.5} borderRadius={1} bgcolor="#dcfce7" color="#15803d" fontSize={11} fontWeight={700}>
-                            Ta’mirlangan
+                            {h.status === "sold" ? "Sotilgan" : "Bo‘sh"}
                           </Box>
-                        )}
-                      </Stack>
-                    </Paper>
-                  ))}
-                </Box>
+                          {h.is_repaired && (
+                            <Box
+                              px={1}
+                              py={0.5}
+                              borderRadius={1}
+                              bgcolor="#dcfce7"
+                              color="#15803d"
+                              fontSize={11}
+                              fontWeight={700}
+                            >
+                              Ta’mirlangan
+                            </Box>
+                          )}
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Box>
+                )}
               </Paper>
             ))}
         </Stack>
