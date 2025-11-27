@@ -12,41 +12,19 @@ import {
   Drawer,
   Autocomplete,
   CircularProgress,
+  Divider,
+  IconButton,
+  Paper,
+  Stack,
+  Tooltip,
 } from "@mui/material";
-import { Add } from "@mui/icons-material";
+import { Add, DeleteOutline } from "@mui/icons-material";
 import { useGetBlocksInfinite } from "@/hooks/modules/block";
 import { useGetPlansInfinite } from "@/hooks/modules/plan";
 import { useCreateHomeList } from "@/hooks/modules/home";
 
 export default function HomeCreate() {
-  const [floors, setFloors] = useState([
-    {
-      floor: 1,
-      homes: [
-        { id: 1, block_id: null, plan_id: null, number: "31", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 2, block_id: null, plan_id: null, number: "32", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 3, block_id: null, plan_id: null, number: "33", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 4, block_id: null, plan_id: null, number: "34", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 5, block_id: null, plan_id: null, number: "35", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 6, block_id: null, plan_id: null, number: "36", stage: 1, square: 63, number_of_rooms: 3, price_repaired: "8734636343", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" }
-      ]
-    },
-    {
-      floor: 2,
-      homes: [
-        { id: 7, block_id: null, plan_id: null, number: "25", stage: 2, square: 29.8, number_of_rooms: 1, price_repaired: "734574835783", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 8, block_id: null, plan_id: null, number: "26", stage: 2, square: 40, number_of_rooms: 2, price_repaired: "734574835783", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 9, block_id: null, plan_id: null, number: "27", stage: 2, square: 58.2, number_of_rooms: 2, price_repaired: "734574835783", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" }
-      ]
-    },
-    {
-      floor: 3,
-      homes: [
-        { id: 10, block_id: null, plan_id: null, number: "14", stage: 3, square: 40, number_of_rooms: 2, price_repaired: "3443788347", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" },
-        { id: 11, block_id: null, plan_id: null, number: "18", stage: 3, square: 29.8, number_of_rooms: 1, price_repaired: "3443788347", price_no_repaired: "", is_repaired: false, is_residential: true, is_active: false, status: "sold" }
-      ]
-    }
-  ]);
+  const [floors, setFloors] = useState<{ floor: number; homes: any[] }[]>([]);
 
   const [openHome, setOpenHome] = useState(false);
   const [homeCount, setHomeCount] = useState<number | null>(null);
@@ -152,6 +130,25 @@ export default function HomeCreate() {
     setOpenDrawer(false);
   };
 
+  const handleDeleteHome = (floorNumber: number, homeId: number) => {
+    setFloors((prevFloors) => {
+      const updatedFloors = prevFloors
+        .map((floor) =>
+          floor.floor === floorNumber
+            ? { ...floor, homes: floor.homes.filter((home) => home.id !== homeId) }
+            : floor
+        )
+        .filter((floor) => floor.homes.length > 0);
+
+      if (selectedHome?.id === homeId) {
+        setSelectedHome(null);
+        setOpenDrawer(false);
+      }
+
+      return updatedFloors;
+    });
+  };
+
   const handleCreateHome = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!homeCount || !floorCount) return;
@@ -214,76 +211,143 @@ export default function HomeCreate() {
 
   return (
     <>
-      <Box flex={3} maxHeight="100vh" overflow="auto">
+      <Box flex={3} maxHeight="100vh" overflow="auto" sx={{ background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 35%)", p: 2, borderRadius: 3 }}>
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: "1px solid #e5e7eb", background: "linear-gradient(135deg, #f0f9ff 0%, #ecfeff 40%, #ffffff 100%)" }}>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={2}>
+            <div>
+              <Typography variant="h6" fontWeight={700} color="primary">Uylarni yaratish</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Qavat va xonadonlarni qo‘shing, so‘ng saqlab yuboring. Keraksiz uylarni istalgan payt o‘chirishingiz mumkin.
+              </Typography>
+            </div>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => setOpenHome(true)}>
+                Qavat qo‘shish
+              </Button>
+              <Fab color="primary" size="medium" onClick={() => setOpenHome(true)}>
+                <Add />
+              </Fab>
+            </Stack>
+          </Stack>
 
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h6" fontWeight={600}>Uylar</Typography>
-          <Fab color="primary" size="medium" onClick={() => setOpenHome(true)}>
-            <Add />
-          </Fab>
-        </Box>
+          <Divider sx={{ my: 3 }} />
 
-        <Box display="flex" justifyContent="space-between">
-          <Box display="flex" alignItems="center" gap={1} mb={1}>
-            <Typography fontWeight={600}>All</Typography>
-            <Checkbox checked={allSelected} onChange={handleAllCheckboxChange} />
-            <Add className="cursor-pointer" onClick={() => setOpenHome(true)} />
+          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={2}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography fontWeight={600}>Hamma uylarni tanlash</Typography>
+              <Checkbox checked={allSelected} onChange={handleAllCheckboxChange} />
+            </Stack>
+            <Button onClick={() => handleSave()} variant="contained" color="primary" startIcon={<i className="fa-solid fa-floppy-disk"></i>}>
+              Saqlash
+            </Button>
+          </Stack>
+        </Paper>
 
+        {floors.length === 0 && (
+          <Paper elevation={0} sx={{ p: 4, textAlign: "center", border: "1px dashed #cbd5e1", backgroundColor: "#f8fafc", borderRadius: 3 }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              Hozircha uylar qo‘shilmagan
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Qavat va xonadonlar sonini tanlab yangi uylarni qo‘shishni boshlang.
+            </Typography>
+            <Button variant="contained" startIcon={<Add />} onClick={() => setOpenHome(true)}>
+              Uylar qo‘shish
+            </Button>
+          </Paper>
+        )}
+
+        <Stack spacing={3}>
+          {floors
+            .slice()
+            .sort((a, b) => b.floor - a.floor)
+            .map((f) => (
+              <Paper key={f.floor} elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #e2e8f0" }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography fontWeight={700} fontSize={18} color="primary">{f.floor}-qavat</Typography>
+                    <Checkbox
+                      checked={allSelected || selectedFloors.includes(f.floor)}
+                      onChange={(e) => handleFloorCheckboxChange(f.floor, e.target.checked)}
+                    />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {f.homes.length} ta xonadon
+                  </Typography>
+                </Stack>
+
+                <Box display="flex" gap={1.5} flexWrap="wrap">
+                  {f.homes.map((h, idx) => (
+                    <Paper
+                      key={h.id}
+                      component={ButtonBase}
+                      onClick={() => {
+                        setSelectedFloor(f);
+                        setSelectedHome(h);
+                        setOpenDrawer(true);
+                      }}
+                      sx={{
+                        position: "relative",
+                        cursor: "pointer",
+                        width: 170,
+                        p: 1.5,
+                        borderRadius: 2.5,
+                        textAlign: "left",
+                        background: "linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%)",
+                        boxShadow: "0px 10px 30px rgba(15, 23, 42, 0.08)",
+                        border: getHomeBorder(f.floor, h, idx),
+                      }}
+                    >
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography fontSize={13} fontWeight={700} color="#0f172a">
+                          № {h.number || "-"}
+                        </Typography>
+                        <Tooltip title="Uy o‘chirish">
+                          <IconButton
+                            size="small"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteHome(f.floor, h.id);
+                            }}
+                          >
+                            <DeleteOutline fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                      <Typography fontSize={12} color="#0f172a" fontWeight={600}>
+                        {h.number_of_rooms || 0} xonali
+                      </Typography>
+                      <Typography fontSize={12} color="#475569">
+                        {h.square || 0} m²
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} mt={1.5}>
+                        <Box px={1} py={0.5} borderRadius={1} bgcolor="#e0f2fe" color="#0369a1" fontSize={11} fontWeight={700}>
+                          {h.status === "sold" ? "Sotilgan" : "Bo‘sh"}
+                        </Box>
+                        {h.is_repaired && (
+                          <Box px={1} py={0.5} borderRadius={1} bgcolor="#dcfce7" color="#15803d" fontSize={11} fontWeight={700}>
+                            Ta’mirlangan
+                          </Box>
+                        )}
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Box>
+              </Paper>
+            ))}
+        </Stack>
+
+        {floors[0]?.homes?.length ? (
+          <Box display="flex" justifyContent="center" gap={4} mt={3}>
+            {floors[0]?.homes.map((_, idx) => (
+              <Checkbox
+                key={idx}
+                checked={selectedColumns.includes(idx) || allSelected}
+                onChange={(e) => handleColumnCheckboxChange(idx, e.target.checked)}
+              />
+            ))}
           </Box>
-          <Box><Button onClick={() => handleSave()} variant="contained" color="primary"> <i className="fa-solid fa-floppy-disk"></i> Saqlash </Button></Box>
-        </Box>
-
-        <Box display="flex" flexDirection="column" gap={4}>
-          {floors.slice().reverse().map((f) => (
-            <Box key={f.floor} display="flex" gap={2}>
-              <Box width={50} textAlign="center">
-                <Typography fontWeight={600}>{f.floor}</Typography>
-                <Checkbox
-                  checked={allSelected || selectedFloors.includes(f.floor)}
-                  onChange={(e) => handleFloorCheckboxChange(f.floor, e.target.checked)}
-                />
-              </Box>
-
-              <Box display="flex" gap={1} flexWrap="wrap">
-                {f.homes.map((h, idx) => (
-                  <ButtonBase
-                    key={h.id}
-                    onClick={() => {
-                      setSelectedFloor(f);
-                      setSelectedHome(h);
-                      setOpenDrawer(true);
-                    }}
-                    sx={{
-                      cursor: "pointer",
-                      width: 150,
-                      p: 1.2,
-                      borderRadius: 2,
-                      textAlign: "left",
-                      background: h.status === "sold" ? "#e53935" : "#ffffff",
-                      color: h.status === "sold" ? "#fff" : "#000",
-                      boxShadow: "0px 2px 4px rgba(0,0,0,0.2)",
-                      border: getHomeBorder(f.floor, h, idx),
-                    }}
-                  >
-                    <Typography fontSize={13} fontWeight={600}>№ {h.number}</Typography>
-                    <Typography fontSize={12}>{h.number_of_rooms} x</Typography>
-                    <Typography fontSize={12}>{h.square} m²</Typography>
-                  </ButtonBase>
-                ))}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-
-        <Box display="flex" justifyContent="center" gap={4} mt={3}>
-          {floors[0]?.homes.map((_, idx) => (
-            <Checkbox
-              key={idx}
-              checked={selectedColumns.includes(idx) || allSelected}
-              onChange={(e) => handleColumnCheckboxChange(idx, e.target.checked)}
-            />
-          ))}
-        </Box>
+        ) : null}
 
       </Box>
 
