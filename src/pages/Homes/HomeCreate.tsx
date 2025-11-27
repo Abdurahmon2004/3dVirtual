@@ -34,7 +34,8 @@ export default function HomeCreate() {
 
   const [openHomeModal, setOpenHomeModal] = useState(false);
   const [homeForm, setHomeForm] = useState<any | null>(null);
-  const [homeTargetFloor, setHomeTargetFloor] = useState<number | null>(null);
+  const [homeTargetFloors, setHomeTargetFloors] = useState<number[]>([]);
+  const [homeCount, setHomeCount] = useState<number>(1);
 
   const [collapsedFloors, setCollapsedFloors] = useState<number[]>([]);
 
@@ -119,6 +120,9 @@ export default function HomeCreate() {
     if (!checked) setAllSelected(false);
   };
 
+  const getSelectedTargetFloors = () =>
+    allSelected ? floors.map((f) => f.floor) : selectedFloors;
+
   const handleSaveHome = () => {
     if (!selectedHome) return;
 
@@ -193,16 +197,28 @@ export default function HomeCreate() {
     return maxNumber + 1;
   };
 
-  const openCreateHomeModal = (floorNumber: number) => {
-    const nextNumber = getNextHomeNumber(floorNumber);
+  const handleOpenSelectedFloorsModal = () => {
+    const targets = getSelectedTargetFloors();
+    if (targets.length === 0) return;
 
-    setHomeTargetFloor(floorNumber);
+    openCreateHomeModal(targets);
+  };
+
+  const openCreateHomeModal = (floorNumbers: number | number[]) => {
+    const targetFloors = Array.isArray(floorNumbers) ? floorNumbers : [floorNumbers];
+    if (targetFloors.length === 0) return;
+
+    const initialFloor = targetFloors[0];
+    const nextNumber = getNextHomeNumber(initialFloor);
+
+    setHomeTargetFloors(targetFloors);
+    setHomeCount(1);
     setHomeForm({
       id: Date.now() + Math.random(),
       block_id: null,
       plan_id: null,
       number: nextNumber,
-      stage: floorNumber,
+      stage: initialFloor,
       square: 0,
       number_of_rooms: 0,
       price_repaired: "",
@@ -217,19 +233,34 @@ export default function HomeCreate() {
 
   const handleCreateHomeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!homeForm || !homeTargetFloor) return;
+    if (!homeForm || homeTargetFloors.length === 0) return;
+
+    const count = Math.max(1, homeCount || 1);
 
     setFloors((prevFloors) =>
-      prevFloors.map((floor) =>
-        floor.floor === homeTargetFloor
-          ? { ...floor, homes: [...floor.homes, { ...homeForm, stage: floor.floor }] }
-          : floor
-      )
+      prevFloors.map((floor) => {
+        if (!homeTargetFloors.includes(floor.floor)) return floor;
+
+        const startNumber = floor.homes.reduce(
+          (max, home) => Math.max(max, Number(home.number) || 0),
+          0
+        );
+
+        const homesToAdd = Array.from({ length: count }, (_, idx) => ({
+          ...homeForm,
+          id: Date.now() + Math.random() + idx,
+          number: startNumber + idx + 1,
+          stage: floor.floor,
+        }));
+
+        return { ...floor, homes: [...floor.homes, ...homesToAdd] };
+      })
     );
 
     setOpenHomeModal(false);
-    setHomeTargetFloor(null);
+    setHomeTargetFloors([]);
     setHomeForm(null);
+    setHomeCount(1);
   };
   const { mutate } = useCreateHomeList();
   const handleSave = () => {
@@ -362,6 +393,14 @@ export default function HomeCreate() {
                 onClick={handleDeleteSelectedFloors}
               >
                 Tanlangan qavatlarni o‘chirish
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Add />}
+                onClick={handleOpenSelectedFloorsModal}
+                disabled={floors.length === 0 || (!allSelected && selectedFloors.length === 0)}
+              >
+                Tanlangan qavatlarga uy qo‘shish
               </Button>
               <Button variant="outlined" onClick={collapseAllFloors}>
                 Hammasini yig‘ish
@@ -613,14 +652,27 @@ export default function HomeCreate() {
         onClose={() => {
           setOpenHomeModal(false);
           setHomeForm(null);
+          setHomeTargetFloors([]);
+          setHomeCount(1);
         }}
         fullWidth
       >
         <DialogContent>
           <form onSubmit={handleCreateHomeSubmit}>
             <Typography variant="h6" fontWeight={700} mb={2}>
-              {homeTargetFloor ? `${homeTargetFloor}-qavat uchun uy qo‘shish` : "Uy qo‘shish"}
+              {homeTargetFloors.length > 1
+                ? "Tanlangan qavatlar uchun uy qo‘shish"
+                : homeTargetFloors[0]
+                  ? `${homeTargetFloors[0]}-qavat uchun uy qo‘shish`
+                  : "Uy qo‘shish"}
             </Typography>
+            {homeTargetFloors.length > 0 && (
+              <Typography variant="body2" color="text.secondary" mb={1.5}>
+                {homeTargetFloors.length > 1
+                  ? `Uylar ${homeTargetFloors.join(", ")}-qavatlarga qo‘shiladi.`
+                  : `${homeTargetFloors[0]}-qavatga uy qo‘shiladi.`}
+              </Typography>
+            )}
 
             <Stack spacing={1.5}>
               <Autocomplete
@@ -681,6 +733,14 @@ export default function HomeCreate() {
                 value={homeForm?.number || ""}
                 disabled
                 helperText="Raqam avtomatik belgilanadi"
+              />
+              <TextField
+                fullWidth
+                label="Qavatdagi uylar soni"
+                type="number"
+                value={homeCount || ""}
+                inputProps={{ min: 1 }}
+                onChange={(e) => setHomeCount(Number(e.target.value))}
               />
               <TextField
                 fullWidth
