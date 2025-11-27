@@ -1,22 +1,24 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
+  Autocomplete,
   Box,
-  Checkbox,
-  Typography,
+  Button,
   ButtonBase,
-  Fab,
+  Checkbox,
+  CircularProgress,
   Dialog,
   DialogContent,
-  TextField,
-  Button,
-  Drawer,
-  Autocomplete,
-  CircularProgress,
   Divider,
+  Drawer,
+  Fab,
   IconButton,
   Paper,
   Stack,
+  TextField,
   Tooltip,
+  Typography,
+  alpha,
+  useTheme,
 } from "@mui/material";
 import { Add, DeleteOutline, DeleteSweep, ExpandLess, ExpandMore } from "@mui/icons-material";
 import { useGetBlocksInfinite } from "@/hooks/modules/block";
@@ -24,11 +26,15 @@ import { useGetPlansInfinite } from "@/hooks/modules/plan";
 import { useCreateHomeList } from "@/hooks/modules/home";
 
 export default function HomeCreate() {
+  const theme = useTheme();
   const [floors, setFloors] = useState<{ floor: number; homes: any[] }[]>([]);
 
   const [openHome, setOpenHome] = useState(false);
-  const [homeCount, setHomeCount] = useState<number | null>(null);
   const [floorCount, setFloorCount] = useState<number>(1);
+
+  const [openHomeModal, setOpenHomeModal] = useState(false);
+  const [homeForm, setHomeForm] = useState<any | null>(null);
+  const [homeTargetFloor, setHomeTargetFloor] = useState<number | null>(null);
 
   const [collapsedFloors, setCollapsedFloors] = useState<number[]>([]);
 
@@ -58,13 +64,15 @@ export default function HomeCreate() {
     }
   };
 
+  const blockIdForPlans = selectedHome?.block_id ?? homeForm?.block_id;
+
   const {
     data: planPages,
     fetchNextPage: fetchNextPlanPage,
     hasNextPage: hasNextPlanPage,
     isFetchingNextPage: isFetchingPlans,
     isLoading: isLoadingPlans,
-  } = useGetPlansInfinite({ block_id: selectedHome?.block_id });
+  } = useGetPlansInfinite({ block_id: blockIdForPlans });
 
   const planList = useMemo(() => planPages?.pages.flatMap((p: any) => p.data) ?? [], [planPages]);
   const planRef = useRef<any>(null);
@@ -77,10 +85,11 @@ export default function HomeCreate() {
   };
 
   const getHomeBorder = (floorNum: number, home: any, idx: number) => {
-    if (allSelected) return "2px solid #1976d2";
-    if (selectedFloors.includes(floorNum)) return "2px solid #1976d2";
-    if (selectedColumns.includes(idx)) return "2px solid #1976d2";
-    if (selectedHome?.id === home.id) return "2px solid #1976d2";
+    const border = `2px solid ${theme.palette.primary.main}`;
+    if (allSelected) return border;
+    if (selectedFloors.includes(floorNum)) return border;
+    if (selectedColumns.includes(idx)) return border;
+    if (selectedHome?.id === home.id) return border;
     return "2px solid transparent";
   };
 
@@ -153,17 +162,46 @@ export default function HomeCreate() {
 
   const handleCreateHome = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!homeCount || !floorCount) return;
+    if (!floorCount) return;
 
     const lastFloorNumber = floors.length
       ? Math.max(...floors.map((item) => item.floor))
       : 0;
 
-    const createHome = (floorNumber: number) => ({
+    const newFloors = Array.from({ length: floorCount }, (_, floorIdx) => {
+      const floorNumber = lastFloorNumber + floorIdx + 1;
+
+      return {
+        floor: floorNumber,
+        homes: [],
+      };
+    });
+
+    //@ts-ignore
+    setFloors([...floors, ...newFloors]);
+    setFloorCount(1);
+    setOpenHome(false);
+  };
+
+  const getNextHomeNumber = (floorNumber: number) => {
+    const targetFloor = floors.find((f) => f.floor === floorNumber);
+    if (!targetFloor) return 1;
+
+    const numbers = targetFloor.homes.map((home) => Number(home.number) || 0);
+    const maxNumber = numbers.length ? Math.max(...numbers) : 0;
+
+    return maxNumber + 1;
+  };
+
+  const openCreateHomeModal = (floorNumber: number) => {
+    const nextNumber = getNextHomeNumber(floorNumber);
+
+    setHomeTargetFloor(floorNumber);
+    setHomeForm({
       id: Date.now() + Math.random(),
       block_id: null,
       plan_id: null,
-      number: 0,
+      number: nextNumber,
       stage: floorNumber,
       square: 0,
       number_of_rooms: 0,
@@ -171,24 +209,27 @@ export default function HomeCreate() {
       price_no_repaired: "",
       is_repaired: false,
       is_residential: true,
-      is_active: false,
-      status: "sold",
+      is_active: true,
+      status: "available",
     });
+    setOpenHomeModal(true);
+  };
 
-    const newFloors = Array.from({ length: floorCount }, (_, floorIdx) => {
-      const floorNumber = lastFloorNumber + floorIdx + 1;
+  const handleCreateHomeSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!homeForm || !homeTargetFloor) return;
 
-      return {
-        floor: floorNumber,
-        homes: Array.from({ length: homeCount }, () => createHome(floorNumber)),
-      };
-    });
+    setFloors((prevFloors) =>
+      prevFloors.map((floor) =>
+        floor.floor === homeTargetFloor
+          ? { ...floor, homes: [...floor.homes, { ...homeForm, stage: floor.floor }] }
+          : floor
+      )
+    );
 
-    //@ts-ignore
-    setFloors([...floors, ...newFloors]);
-    setHomeCount(null);
-    setFloorCount(1);
-    setOpenHome(false);
+    setOpenHomeModal(false);
+    setHomeTargetFloor(null);
+    setHomeForm(null);
   };
   const { mutate } = useCreateHomeList();
   const handleSave = () => {
@@ -260,13 +301,34 @@ export default function HomeCreate() {
 
   return (
     <>
-      <Box flex={3} maxHeight="100vh" overflow="auto" sx={{ background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 35%)", p: 2, borderRadius: 3 }}>
-        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: "1px solid #e5e7eb", background: "linear-gradient(135deg, #f0f9ff 0%, #ecfeff 40%, #ffffff 100%)" }}>
+      <Box
+        flex={3}
+        maxHeight="100vh"
+        overflow="auto"
+        sx={{
+          backgroundColor: theme.palette.background.default,
+          p: 2,
+          borderRadius: 3,
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            border: `1px solid ${theme.palette.divider}`,
+            background:
+              theme.palette.mode === "dark"
+                ? alpha(theme.palette.primary.main, 0.08)
+                : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.light, 0.16)} 50%, ${theme.palette.background.paper} 100%)`,
+          }}
+        >
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }} spacing={2}>
             <div>
               <Typography variant="h6" fontWeight={700} color="primary">Uylarni yaratish</Typography>
               <Typography variant="body2" color="text.secondary">
-                Qavat va xonadonlarni qo‘shing, so‘ng saqlab yuboring. Keraksiz uylarni istalgan payt o‘chirishingiz mumkin.
+                Qavatlarni qo‘shing va uylarga bittalab ma’lumot kiriting. Har bir qavatda uy raqami avtomatik tarzda belgilanadi.
               </Typography>
             </div>
             <Stack direction="row" spacing={1}>
@@ -320,12 +382,21 @@ export default function HomeCreate() {
         </Paper>
 
         {floors.length === 0 && (
-          <Paper elevation={0} sx={{ p: 4, textAlign: "center", border: "1px dashed #cbd5e1", backgroundColor: "#f8fafc", borderRadius: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: 4,
+              textAlign: "center",
+              border: `1px dashed ${theme.palette.divider}`,
+              backgroundColor: theme.palette.background.paper,
+              borderRadius: 3,
+            }}
+          >
             <Typography variant="h6" fontWeight={600} gutterBottom>
               Hozircha uylar qo‘shilmagan
             </Typography>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Qavat va xonadonlar sonini tanlab yangi uylarni qo‘shishni boshlang.
+              Qavatlarni qo‘shing va har bir uy uchun ma’lumotlarni alohida kiritib boring.
             </Typography>
             <Button variant="contained" startIcon={<Add />} onClick={() => setOpenHome(true)}>
               Uylar qo‘shish
@@ -344,13 +415,15 @@ export default function HomeCreate() {
                 sx={{
                   p: 2.5,
                   borderRadius: 3,
-                  border: "1px solid #e2e8f0",
-                  background: collapsedFloors.includes(f.floor)
-                    ? "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)"
-                    : "white",
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow:
+                    theme.palette.mode === "dark"
+                      ? "0px 10px 30px rgba(0,0,0,0.35)"
+                      : "0px 10px 30px rgba(15,23,42,0.08)",
                 }}
               >
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={2} spacing={1.5}>
                   <Stack direction="row" spacing={1.5} alignItems="center">
                     <Typography fontWeight={700} fontSize={18} color="primary">{f.floor}-qavat</Typography>
                     <Checkbox
@@ -361,7 +434,15 @@ export default function HomeCreate() {
                       {collapsedFloors.includes(f.floor) ? <ExpandMore /> : <ExpandLess />}
                     </IconButton>
                   </Stack>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Add />}
+                      onClick={() => openCreateHomeModal(f.floor)}
+                    >
+                      Uy qo‘shish
+                    </Button>
                     <Typography variant="body2" color="text.secondary">
                       {f.homes.length} ta xonadon
                     </Typography>
@@ -374,7 +455,7 @@ export default function HomeCreate() {
                 </Stack>
 
                 {!collapsedFloors.includes(f.floor) && (
-                  <Box display="grid" gap={1.5} gridTemplateColumns="repeat(auto-fill, minmax(160px, 1fr))">
+                  <Box display="grid" gap={1.5} gridTemplateColumns="repeat(auto-fill, minmax(180px, 1fr))">
                     {f.homes.map((h, idx) => (
                       <Paper
                         key={h.id}
@@ -390,18 +471,28 @@ export default function HomeCreate() {
                           p: 1.5,
                           borderRadius: 2.5,
                           textAlign: "left",
-                          background: "linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%)",
-                          boxShadow: "0px 10px 30px rgba(15, 23, 42, 0.08)",
+                          background:
+                            theme.palette.mode === "dark"
+                              ? alpha(theme.palette.primary.main, 0.12)
+                              : alpha(theme.palette.primary.light, 0.2),
+                          color: theme.palette.text.primary,
+                          boxShadow:
+                            theme.palette.mode === "dark"
+                              ? "0px 12px 25px rgba(0,0,0,0.35)"
+                              : "0px 12px 25px rgba(15,23,42,0.12)",
                           border: getHomeBorder(f.floor, h, idx),
                           transition: "transform 150ms ease, box-shadow 150ms ease",
                           '&:hover': {
                             transform: "translateY(-2px)",
-                            boxShadow: "0px 15px 35px rgba(15, 23, 42, 0.12)",
+                            boxShadow:
+                              theme.palette.mode === "dark"
+                                ? "0px 16px 35px rgba(0,0,0,0.45)"
+                                : "0px 15px 35px rgba(15, 23, 42, 0.14)",
                           },
                         }}
                       >
                         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-                          <Typography fontSize={13} fontWeight={700} color="#0f172a">
+                          <Typography fontSize={13} fontWeight={700} color={theme.palette.text.primary}>
                             № {h.number || "-"}
                           </Typography>
                           <Tooltip title="Uy o‘chirish">
@@ -416,10 +507,10 @@ export default function HomeCreate() {
                             </IconButton>
                           </Tooltip>
                         </Stack>
-                        <Typography fontSize={12} color="#0f172a" fontWeight={600}>
+                        <Typography fontSize={12} color={theme.palette.text.primary} fontWeight={600}>
                           {h.number_of_rooms || 0} xonali
                         </Typography>
-                        <Typography fontSize={12} color="#475569">
+                        <Typography fontSize={12} color="text.secondary">
                           {h.square || 0} m²
                         </Typography>
                         <Stack direction="row" spacing={0.5} mt={1.5} flexWrap="wrap">
@@ -427,8 +518,12 @@ export default function HomeCreate() {
                             px={1}
                             py={0.5}
                             borderRadius={1}
-                            bgcolor={h.status === "sold" ? "#fee2e2" : "#e0f2fe"}
-                            color={h.status === "sold" ? "#991b1b" : "#0369a1"}
+                            bgcolor={
+                              h.status === "sold"
+                                ? alpha(theme.palette.error.main, 0.1)
+                                : alpha(theme.palette.success.main, 0.12)
+                            }
+                            color={h.status === "sold" ? theme.palette.error.dark : theme.palette.success.dark}
                             fontSize={11}
                             fontWeight={700}
                           >
@@ -439,8 +534,8 @@ export default function HomeCreate() {
                               px={1}
                               py={0.5}
                               borderRadius={1}
-                              bgcolor="#dcfce7"
-                              color="#15803d"
+                              bgcolor={alpha(theme.palette.success.main, 0.16)}
+                              color={theme.palette.success.main}
                               fontSize={11}
                               fontWeight={700}
                             >
@@ -450,6 +545,24 @@ export default function HomeCreate() {
                         </Stack>
                       </Paper>
                     ))}
+                    <Paper
+                      variant="outlined"
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2.5,
+                        borderStyle: "dashed",
+                        borderColor: theme.palette.divider,
+                        color: theme.palette.text.secondary,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        bgcolor: theme.palette.background.default,
+                      }}
+                    >
+                      <Button startIcon={<Add />} onClick={() => openCreateHomeModal(f.floor)}>
+                        Uy qo‘shish
+                      </Button>
+                    </Paper>
                   </Box>
                 )}
               </Paper>
@@ -473,26 +586,162 @@ export default function HomeCreate() {
       <Dialog open={openHome} onClose={() => setOpenHome(false)} fullWidth>
         <DialogContent>
           <form onSubmit={handleCreateHome}>
+            <Typography variant="h6" fontWeight={700} mb={2}>
+              Yangi qavat qo‘shish
+            </Typography>
             <TextField
-              label="Qavatlar soni"
+              label="Qo‘shiladigan qavatlar soni"
               type="number"
               size="small"
               fullWidth
               value={floorCount || ""}
               onChange={(e) => setFloorCount(Number(e.target.value))}
-              sx={{ mb: 2 }}
+              sx={{ mb: 1.5 }}
             />
-            <TextField
-              label="Har bir qavatdagi xonalar soni"
-              type="number"
-              size="small"
-              fullWidth
-              value={homeCount || ""}
-              onChange={(e) => setHomeCount(Number(e.target.value))}
-            />
-            <Button type="submit" variant="contained" sx={{ mt: 2, float: "right" }}>
-              Yuborish
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Qavatlar qo‘shilgach, har biriga uylarni bittalab kiritishingiz mumkin.
+            </Typography>
+            <Button type="submit" variant="contained" sx={{ mt: 1, float: "right" }}>
+              Saqlash
             </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openHomeModal}
+        onClose={() => {
+          setOpenHomeModal(false);
+          setHomeForm(null);
+        }}
+        fullWidth
+      >
+        <DialogContent>
+          <form onSubmit={handleCreateHomeSubmit}>
+            <Typography variant="h6" fontWeight={700} mb={2}>
+              {homeTargetFloor ? `${homeTargetFloor}-qavat uchun uy qo‘shish` : "Uy qo‘shish"}
+            </Typography>
+
+            <Stack spacing={1.5}>
+              <Autocomplete
+                size="small"
+                fullWidth
+                loading={isLoadingBlocks}
+                options={blockList}
+                value={blockList.find((b) => b.id === homeForm?.block_id) || null}
+                getOptionLabel={(option) => option.name || ""}
+                onChange={(_, val) => setHomeForm((prev: any) => ({ ...prev, block_id: val?.id || null, plan_id: null }))}
+                ListboxProps={{ ref: blockRef, onScroll: handleBlockScroll, style: { maxHeight: 200, overflow: "auto" } }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Blok tanlang"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {isLoadingBlocks ? <CircularProgress size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+
+              <Autocomplete
+                size="small"
+                fullWidth
+                loading={isLoadingPlans}
+                options={planList}
+                value={planList.find((p) => p.id === homeForm?.plan_id) || null}
+                getOptionLabel={(option) => option.name || ""}
+                onChange={(_, val) => setHomeForm((prev: any) => ({ ...prev, plan_id: val?.id || null }))}
+                ListboxProps={{ ref: planRef, onScroll: handlePlanScroll, style: { maxHeight: 200, overflow: "auto" } }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Plan tanlang"
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {isLoadingPlans ? <CircularProgress size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+
+              <TextField
+                fullWidth
+                label="Uy raqami"
+                value={homeForm?.number || ""}
+                disabled
+                helperText="Raqam avtomatik belgilanadi"
+              />
+              <TextField
+                fullWidth
+                label="Xonalar soni"
+                type="number"
+                value={homeForm?.number_of_rooms || ""}
+                onChange={(e) => setHomeForm((prev: any) => ({ ...prev, number_of_rooms: Number(e.target.value) }))}
+              />
+              <TextField
+                fullWidth
+                label="Maydon (m²)"
+                type="number"
+                value={homeForm?.square || ""}
+                onChange={(e) => setHomeForm((prev: any) => ({ ...prev, square: Number(e.target.value) }))}
+              />
+              <TextField
+                fullWidth
+                label="Ta’mirlangan narx"
+                value={homeForm?.price_repaired || ""}
+                onChange={(e) => setHomeForm((prev: any) => ({ ...prev, price_repaired: e.target.value }))}
+              />
+              <TextField
+                fullWidth
+                label="Ta’mirsiz narx"
+                value={homeForm?.price_no_repaired || ""}
+                onChange={(e) => setHomeForm((prev: any) => ({ ...prev, price_no_repaired: e.target.value }))}
+              />
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Checkbox
+                    checked={homeForm?.is_repaired || false}
+                    onChange={(e) => setHomeForm((prev: any) => ({ ...prev, is_repaired: e.target.checked }))}
+                  />
+                  <Typography>Ta’mirlangan</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Checkbox
+                    checked={homeForm?.is_residential || false}
+                    onChange={(e) => setHomeForm((prev: any) => ({ ...prev, is_residential: e.target.checked }))}
+                  />
+                  <Typography>Turar joy</Typography>
+                </Box>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Checkbox
+                    checked={homeForm?.status === "sold"}
+                    onChange={(e) => setHomeForm((prev: any) => ({ ...prev, status: e.target.checked ? "sold" : "available" }))}
+                  />
+                  <Typography>Sotilgan</Typography>
+                </Box>
+              </Stack>
+            </Stack>
+
+            <Stack direction="row" justifyContent="flex-end" spacing={1.5} mt={3}>
+              <Button variant="text" onClick={() => setOpenHomeModal(false)}>
+                Bekor qilish
+              </Button>
+              <Button type="submit" variant="contained">
+                Uy qo‘shish
+              </Button>
+            </Stack>
           </form>
         </DialogContent>
       </Dialog>
@@ -554,7 +803,8 @@ export default function HomeCreate() {
                 )}
               />
 
-              <TextField fullWidth margin="dense" label="Xonadon raqami" value={selectedHome.number_of_rooms} onChange={(e) => setSelectedHome({ ...selectedHome, number: Number(e.target.value) })} />
+              <TextField fullWidth margin="dense" label="Uy raqami" value={selectedHome.number} disabled helperText="Raqam avtomatik" />
+              <TextField fullWidth margin="dense" label="Xonalar soni" value={selectedHome.number_of_rooms} onChange={(e) => setSelectedHome({ ...selectedHome, number_of_rooms: Number(e.target.value) })} />
               <TextField fullWidth margin="dense" label="Maydon (m²)" value={selectedHome.square} onChange={(e) => setSelectedHome({ ...selectedHome, square: Number(e.target.value) })} />
               <TextField fullWidth margin="dense" label="Ta’mirlangan narx" value={selectedHome.price_repaired} onChange={(e) => setSelectedHome({ ...selectedHome, price_repaired: e.target.value })} />
               <TextField fullWidth margin="dense" label="Ta’mirsiz narx" value={selectedHome.price_no_repaired} onChange={(e) => setSelectedHome({ ...selectedHome, price_no_repaired: e.target.value })} />
