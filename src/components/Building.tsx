@@ -1,8 +1,11 @@
 import React, { useState, useMemo, ChangeEvent, useEffect, useRef } from "react";
-import { Box, Button, Dialog, DialogContent, Divider, Drawer, MenuItem, Stack, TextField, Typography, useTheme } from "@mui/material";
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Drawer, MenuItem, Stack, TextField, Typography, useTheme } from "@mui/material";
 import { useGetByIdBlockHome, useGetObjectsInfinite } from "@/hooks/modules/object";
 import { useGetByIdHome } from "@/hooks/modules/home";
 import utils from "@/helpers/utils";
+import { Add, AddCircleOutline } from "@mui/icons-material";
+import { useCrateHome } from "@/hooks/modules/home";
+import { useCrateBlock } from "@/hooks/modules/block";
 interface Apartment {
     id: number;
     number: string | number;
@@ -17,9 +20,6 @@ interface BlockResponse {
     id: number;
     name: string;
     homes: Apartment[];
-}
-interface BackendData {
-    blocks: BlockResponse[];
 }
 interface TransformedFloor {
     floor: number;
@@ -41,8 +41,18 @@ const Item = ({ label, value }: { label: string; value: any }) => (
 const Building: React.FC = () => {
     const theme = useTheme();
     const isDarkMode = theme.palette.mode === 'dark';
-    const [viewMode] = useState<"simple" | "detailed">("simple");
+    const telegramDarkPalette = {
+        background: "#17212b",
+        surface: "#1c2733",
+        card: "#202b3a",
+        border: "#243346",
+        accent: "#3390ec",
+        textPrimary: "#eaf2f7",
+        textSecondary: "#9aa9b5",
+        tile: "#1f2c3d",
+    };
     const [object_id, setObject_id] = useState<number | null>(null);
+    const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
     const { data: objects } = useGetObjectsInfinite();
     const objectList = objects?.pages?.flatMap((p: any) => p.data) ?? [];
     const { data, refetch } = useGetByIdBlockHome(object_id);
@@ -55,6 +65,14 @@ const Building: React.FC = () => {
     useEffect(() => {
         if (object_id) refetch();
     }, [object_id]);
+
+    useEffect(() => {
+        if (data?.blocks?.length) {
+            setSelectedBlockId(data.blocks[0].id);
+        } else {
+            setSelectedBlockId(null);
+        }
+    }, [data]);
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         setObject_id(Number(e.target.value));
@@ -90,14 +108,15 @@ const Building: React.FC = () => {
         if (!data?.blocks) return [];
         return transformBlocks(data.blocks);
     }, [data]);
+    const blockOptions = data?.blocks ?? [];
 
     const getStatusColor = (status?: string) => {
         if (isDarkMode) {
             const darkBgMap: Record<string, string> = {
-                available: "rgba(0, 158, 8, 0.2)",
-                sold: "rgba(224, 91, 91, 0.2)",
-                reserved: "rgba(255, 162, 81, 0.2)",
-                default: "rgba(0, 158, 8, 0.2)",
+                available: "rgba(51, 144, 236, 0.22)",
+                sold: "rgba(224, 91, 91, 0.25)",
+                reserved: "rgba(255, 162, 81, 0.28)",
+                default: "rgba(51, 144, 236, 0.18)",
             };
             return darkBgMap[status ?? "default"];
         } else {
@@ -116,15 +135,6 @@ const Building: React.FC = () => {
             case "sold": return "#E05B5B";
             case "reserved": return "#FFA251";
             default: return "#009E08";
-        }
-    };
-
-    const getStatusText = (status?: string) => {
-        switch (status) {
-            case "available": return "Mavjud";
-            case "sold": return "Sotilgan";
-            case "reserved": return "Bron";
-            default: return "Mavjud";
         }
     };
 
@@ -150,9 +160,90 @@ const Building: React.FC = () => {
     const getMaxColumns = (floors: TransformedFloor[]) => {
         return Math.max(...floors.map((f) => f.homes.length), 0);
     };
+    const handleOpenHomeDialog = (floor: number) => {
+        if (!selectedBlockId) {
+            setFormError("Iltimos, avval blokni tanlang yoki yarating.");
+            return;
+        }
+        setHomeDialog({ open: true, floor });
+        setHomeForm({
+            number: "",
+            square: "",
+            number_of_rooms: "",
+            price_repaired: "",
+            price_no_repaired: "",
+            status: "available",
+        });
+        setFormError(null);
+    };
+
+    const handleSubmitHome = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!homeDialog.floor || !object_id || !selectedBlockId) {
+            setFormError("Obyekt va blok tanlang, so'ngra qavatni belgilang.");
+            return;
+        }
+
+        const payload = {
+            object_id,
+            block_id: selectedBlockId,
+            stage: String(homeDialog.floor),
+            number: Number(homeForm.number) || Number(`${homeDialog.floor}${Date.now()}`),
+            square: Number(homeForm.square) || 0,
+            number_of_rooms: Number(homeForm.number_of_rooms) || 0,
+            price_repaired: Number(homeForm.price_repaired) || 0,
+            price_no_repaired: Number(homeForm.price_no_repaired) || 0,
+            status: homeForm.status,
+        };
+
+        createHome(payload, {
+            onSuccess: () => {
+                setHomeDialog({ open: false, floor: null });
+                setFormError(null);
+                refetch();
+            },
+            onError: () => setFormError("Uy qo'shishda xatolik yuz berdi."),
+        });
+    };
+
+    const handleCreateBlock = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!object_id) {
+            setBlockError("Avval obyektni tanlang.");
+            return;
+        }
+        if (!blockName.trim()) {
+            setBlockError("Blok nomini kiriting.");
+            return;
+        }
+        createBlock({ object_id, name: blockName }, {
+            onSuccess: () => {
+                setBlockDialogOpen(false);
+                setBlockName("");
+                setBlockError(null);
+                refetch();
+            },
+            onError: () => setBlockError("Blok qo'shishda xatolik yuz berdi."),
+        });
+    };
     const [openDrawer, setOpenDrawer] = useState<boolean>(false);
     const [home_id, setHomeId] = useState(null);
-    const { data: home, refetch: homeRefetch } = useGetByIdHome(home_id)
+    const { data: home } = useGetByIdHome(home_id)
+    const { mutate: createHome, isPending: creatingHome } = useCrateHome();
+    const { mutate: createBlock, isPending: creatingBlock } = useCrateBlock();
+    const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+    const [blockName, setBlockName] = useState("");
+    const [homeDialog, setHomeDialog] = useState<{ open: boolean; floor: number | null }>({ open: false, floor: null });
+    const [homeForm, setHomeForm] = useState({
+        number: "",
+        square: "",
+        number_of_rooms: "",
+        price_repaired: "",
+        price_no_repaired: "",
+        status: "available",
+    });
+    const [formError, setFormError] = useState<string | null>(null);
+    const [blockError, setBlockError] = useState<string | null>(null);
     const handleOpenDrawer = (item: any) => {
         setHomeId(item.id)
         setOpenDrawer(true);
@@ -183,17 +274,28 @@ const Building: React.FC = () => {
         <>
             <div className="flex flex-col h-screen w-full">
 
-                <header className="border-b border-gray-200 p-4 flex justify-between items-center shadow-sm">
-                    <h1 className="text-green-600 text-2xl font-bold">Bino Ko‘rinishi</h1>
+                <header
+                    className="border-b border-gray-200 p-4 flex justify-between items-center shadow-sm"
+                    style={{
+                        backgroundColor: isDarkMode ? telegramDarkPalette.surface : undefined,
+                        borderColor: isDarkMode ? telegramDarkPalette.border : undefined,
+                    }}
+                >
+                    <h1
+                        className="text-2xl font-bold"
+                        style={{ color: isDarkMode ? telegramDarkPalette.accent : "#16a34a" }}
+                    >
+                        Bino Ko‘rinishi
+                    </h1>
 
-                    <div className="flex gap-3 items-center">
+                    <div className="flex gap-3 items-center flex-wrap">
                         <TextField
                             size="small"
                             label="Obyekt"
                             select
                             value={object_id ?? ""}
                             onChange={handleChange}
-                            sx={{ width: 250 }}
+                            sx={{ width: 230 }}
                         >
                             {objectList.map((o: any) => (
                                 <MenuItem key={o.id} value={o.id}>
@@ -201,11 +303,47 @@ const Building: React.FC = () => {
                                 </MenuItem>
                             ))}
                         </TextField>
+                        <TextField
+                            size="small"
+                            label="Blok"
+                            select
+                            value={selectedBlockId ?? ""}
+                            onChange={(e) => {
+                                setSelectedBlockId(Number(e.target.value));
+                                setFormError(null);
+                            }}
+                            sx={{ width: 230 }}
+                            disabled={!blockOptions.length}
+                            helperText={blockOptions.length === 0 ? "Avval obyekt tanlang" : undefined}
+                        >
+                            {blockOptions.map((b: any) => (
+                                <MenuItem key={b.id} value={b.id}>
+                                    {b.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                        <Button
+                            variant="outlined"
+                            startIcon={<AddCircleOutline />}
+                            onClick={() => {
+                                setBlockDialogOpen(true);
+                                setBlockError(null);
+                            }}
+                            sx={{
+                                borderColor: isDarkMode ? telegramDarkPalette.accent : undefined,
+                                color: isDarkMode ? telegramDarkPalette.accent : undefined,
+                            }}
+                        >
+                            Yangi blok
+                        </Button>
                     </div>
                 </header>
 
-                <div className=" flex-1 overflow-hidden">
-                    <div className={`flex-1  overflow-y-auto rounded-sm ${isDarkMode ? 'bg-slate-900' : 'bg-gray-50'}`}>
+                <div className=" flex-1 overflow-hidden" style={{ backgroundColor: isDarkMode ? telegramDarkPalette.background : undefined }}>
+                    <div
+                        className="flex-1  overflow-y-auto rounded-sm"
+                        style={{ backgroundColor: isDarkMode ? telegramDarkPalette.background : "#f9fafb" }}
+                    >
                         <div className=" flex flex-wrap xl:grid-cols-4 gap-10 max-w-full px-4">
 
                             {uiData.map(({ block_id, block_name, floors }) => {
@@ -222,8 +360,8 @@ const Building: React.FC = () => {
                                     <div
                                         key={block_id}
                                         style={{
-                                            backgroundColor: isDarkMode ? "#1B2734" : "#ffffff",
-                                            borderColor: isDarkMode ? "#334155" : "#e5e7eb"
+                                            backgroundColor: isDarkMode ? telegramDarkPalette.card : "#ffffff",
+                                            borderColor: isDarkMode ? telegramDarkPalette.border : "#e5e7eb"
                                         }}
                                         className={`rounded-lg p-4 border mt-4  ${isDarkMode ? 'shadow-2xl' : 'shadow-md'}`}
                                     >
@@ -265,10 +403,10 @@ const Building: React.FC = () => {
                                         </div>
 
                                         <div
-                                            style={{ backgroundColor: isDarkMode ? "#0f172a" : "#f9fafb" }}
+                                            style={{ backgroundColor: isDarkMode ? telegramDarkPalette.surface : "#f9fafb" }}
                                             className="rounded-lg p-3"
                                         >
-                                            <div className={`grid gap-2 mb-1.5 pb-1.5 border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-300'}`} style={{ gridTemplateColumns: `35px repeat(${maxColumns}, 1fr)` }}>
+                                            <div className={`grid gap-2 mb-1.5 pb-1.5 border-b ${isDarkMode ? 'border-slate-600' : 'border-gray-300'}`} style={{ gridTemplateColumns: `120px repeat(${maxColumns}, 1fr)` }}>
                                                 <div className={`flex items-center justify-center border-r pr-3 ${isDarkMode ? 'border-slate-600' : 'border-gray-300'}`}>
                                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={isDarkMode ? 'text-slate-500' : 'text-gray-500'}>
                                                         <path d="M2 14L6 10L10 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -290,16 +428,36 @@ const Building: React.FC = () => {
                                                     <div
                                                         key={`floor-${floor}`}
                                                         className="grid gap-2"
-                                                        style={{ gridTemplateColumns: `35px repeat(${maxColumns}, 1fr)` }}
+                                                        style={{ gridTemplateColumns: `120px repeat(${maxColumns}, 1fr)` }}
                                                     >
-                                                        <div className={`flex items-center justify-end gap-1 pr-3 border-r ${isDarkMode ? 'border-slate-600' : 'border-gray-300'}`}>
-                                                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className={isDarkMode ? 'text-slate-500' : 'text-gray-500'}>
-                                                                <path d="M2 14L6 10L10 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                                <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                            </svg>
-                                                            <div className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                                                                {floor}
+                                                        <div className={`flex items-center justify-between gap-2 pr-3 border-r ${isDarkMode ? 'border-slate-600' : 'border-gray-300'}`}>
+                                                            <div className="flex items-center gap-2">
+                                                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className={isDarkMode ? 'text-slate-500' : 'text-gray-500'}>
+                                                                    <path d="M2 14L6 10L10 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                                    <path d="M2 8L6 4L10 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                                </svg>
+                                                                <div className={`text-xs font-bold ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                                                                    {floor}
+                                                                </div>
                                                             </div>
+                                                            <Button
+                                                                size="small"
+                                                                variant="contained"
+                                                                startIcon={<Add fontSize="small" />}
+                                                                onClick={() => handleOpenHomeDialog(floor)}
+                                                                disabled={!selectedBlockId}
+                                                                sx={{
+                                                                    bgcolor: isDarkMode ? telegramDarkPalette.accent : "#3b82f6",
+                                                                    color: "white",
+                                                                    minWidth: 0,
+                                                                    px: 1.5,
+                                                                    '&:hover': {
+                                                                        bgcolor: isDarkMode ? "#297cd6" : "#2563eb",
+                                                                    },
+                                                                }}
+                                                            >
+                                                                Uy
+                                                            </Button>
                                                         </div>
 
                                                         {Array.from({ length: maxColumns }, (_, i) => {
@@ -309,7 +467,7 @@ const Building: React.FC = () => {
                                                                     <div
                                                                         key={`empty-${i}`}
                                                                         style={{
-                                                                            backgroundColor: isDarkMode ? "#1e293b" : "#f3f4f6"
+                                                                            backgroundColor: isDarkMode ? telegramDarkPalette.tile : "#f3f4f6"
                                                                         }}
                                                                         className="rounded-md min-h-[53px] pl-3"
                                                                     />
@@ -364,6 +522,113 @@ const Building: React.FC = () => {
                 </div>
 
             </div>
+            <Dialog open={homeDialog.open} onClose={() => setHomeDialog({ open: false, floor: null })} fullWidth maxWidth="sm">
+                <form onSubmit={handleSubmitHome}>
+                    <DialogTitle>{homeDialog.floor ? `${homeDialog.floor}-qavatga uy qo'shish` : "Uy qo'shish"}</DialogTitle>
+                    <DialogContent>
+                        {formError && (
+                            <Typography color="error" mb={1} fontSize={14}>
+                                {formError}
+                            </Typography>
+                        )}
+                        <Stack spacing={1.5} mt={1}>
+                            <TextField
+                                label="Uy raqami"
+                                type="number"
+                                value={homeForm.number}
+                                onChange={(e) => setHomeForm({ ...homeForm, number: e.target.value })}
+                                fullWidth
+                                size="small"
+                            />
+                            <TextField
+                                label="Maydon (m²)"
+                                type="number"
+                                value={homeForm.square}
+                                onChange={(e) => setHomeForm({ ...homeForm, square: e.target.value })}
+                                fullWidth
+                                size="small"
+                            />
+                            <TextField
+                                label="Xonalar soni"
+                                type="number"
+                                value={homeForm.number_of_rooms}
+                                onChange={(e) => setHomeForm({ ...homeForm, number_of_rooms: e.target.value })}
+                                fullWidth
+                                size="small"
+                            />
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                                <TextField
+                                    label="Ta'mirlangan narx"
+                                    type="number"
+                                    value={homeForm.price_repaired}
+                                    onChange={(e) => setHomeForm({ ...homeForm, price_repaired: e.target.value })}
+                                    fullWidth
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Ta'mirsiz narx"
+                                    type="number"
+                                    value={homeForm.price_no_repaired}
+                                    onChange={(e) => setHomeForm({ ...homeForm, price_no_repaired: e.target.value })}
+                                    fullWidth
+                                    size="small"
+                                />
+                            </Stack>
+                            <TextField
+                                select
+                                label="Holati"
+                                value={homeForm.status}
+                                onChange={(e) => setHomeForm({ ...homeForm, status: e.target.value })}
+                                size="small"
+                            >
+                                <MenuItem value="available">Mavjud</MenuItem>
+                                <MenuItem value="reserved">Bron</MenuItem>
+                                <MenuItem value="sold">Sotilgan</MenuItem>
+                            </TextField>
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setHomeDialog({ open: false, floor: null })} color="inherit">
+                            Bekor qilish
+                        </Button>
+                        <Button type="submit" variant="contained" disabled={creatingHome}>
+                            Qo'shish
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
+            <Dialog open={blockDialogOpen} onClose={() => setBlockDialogOpen(false)} fullWidth maxWidth="xs">
+                <form onSubmit={handleCreateBlock}>
+                    <DialogTitle>Yangi blok qo'shish</DialogTitle>
+                    <DialogContent>
+                        {blockError && (
+                            <Typography color="error" mb={1} fontSize={14}>
+                                {blockError}
+                            </Typography>
+                        )}
+                        <Stack spacing={1.5} mt={1}>
+                            <TextField
+                                label="Blok nomi"
+                                value={blockName}
+                                onChange={(e) => setBlockName(e.target.value)}
+                                fullWidth
+                                size="small"
+                            />
+                            <Typography variant="body2" color="text.secondary">
+                                Blok tanlangan obyektga qo'shiladi.
+                            </Typography>
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setBlockDialogOpen(false)} color="inherit">
+                            Bekor qilish
+                        </Button>
+                        <Button type="submit" variant="contained" disabled={creatingBlock || !object_id}>
+                            Saqlash
+                        </Button>
+                    </DialogActions>
+                </form>
+            </Dialog>
             <Drawer open={openDrawer} onClose={() => setOpenDrawer(false)} anchor="right">
                 <Box sx={{ width: 340, p: 2, overflowY: "auto" }}>
                     <pre>{JSON.stringify(home, null, 2)}</pre>
