@@ -50,6 +50,7 @@ export default function HomeCreate() {
 
   const [openHome, setOpenHome] = useState(false);
   const [homeCount, setHomeCount] = useState<number | null>(null);
+  const [floorCount, setFloorCount] = useState<number>(1);
 
   const [openDrawer, setOpenDrawer] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState<any>(null);
@@ -153,23 +154,41 @@ export default function HomeCreate() {
 
   const handleCreateHome = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!homeCount) return;
+    if (!homeCount || !floorCount) return;
 
-    const newData = {
-      floor: floors.length + 1,
-      homes: Array.from({ length: homeCount }, () => ({
-        id: Date.now() + Math.random(),
-        number: 0,
-        rooms: 0,
-        price: "0",
-        total: "0 UZS",
-        square: "0",
-        status: "sold",
-      })),
-    };
+    const lastFloorNumber = floors.length
+      ? Math.max(...floors.map((item) => item.floor))
+      : 0;
+
+    const createHome = (floorNumber: number) => ({
+      id: Date.now() + Math.random(),
+      block_id: null,
+      plan_id: null,
+      number: 0,
+      stage: floorNumber,
+      square: 0,
+      number_of_rooms: 0,
+      price_repaired: "",
+      price_no_repaired: "",
+      is_repaired: false,
+      is_residential: true,
+      is_active: false,
+      status: "sold",
+    });
+
+    const newFloors = Array.from({ length: floorCount }, (_, floorIdx) => {
+      const floorNumber = lastFloorNumber + floorIdx + 1;
+
+      return {
+        floor: floorNumber,
+        homes: Array.from({ length: homeCount }, () => createHome(floorNumber)),
+      };
+    });
+
     //@ts-ignore
-    setFloors([...floors, newData]);
+    setFloors([...floors, ...newFloors]);
     setHomeCount(null);
+    setFloorCount(1);
     setOpenHome(false);
   };
   const { mutate } = useCreateHomeList();
@@ -199,7 +218,7 @@ export default function HomeCreate() {
 
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h6" fontWeight={600}>Uylar</Typography>
-          <Fab color="primary" size="medium">
+          <Fab color="primary" size="medium" onClick={() => setOpenHome(true)}>
             <Add />
           </Fab>
         </Box>
@@ -272,7 +291,16 @@ export default function HomeCreate() {
         <DialogContent>
           <form onSubmit={handleCreateHome}>
             <TextField
-              label="Xonalar soni"
+              label="Qavatlar soni"
+              type="number"
+              size="small"
+              fullWidth
+              value={floorCount || ""}
+              onChange={(e) => setFloorCount(Number(e.target.value))}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Har bir qavatdagi xonalar soni"
               type="number"
               size="small"
               fullWidth
