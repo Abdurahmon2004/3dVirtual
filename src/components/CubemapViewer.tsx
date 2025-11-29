@@ -32,11 +32,17 @@ const CubemapViewer: React.FC<CubemapViewerProps> = ({
     const [isLoaded, setIsLoaded] = useState(false);
     const { scene } = useThree();
 
-    if (!room) return null;
-    if (!room.textures || room.textures.length !== 6) return null;
+    const hasValidRoom = Boolean(room?.textures && room.textures.length === 6);
 
     useEffect(() => {
+        if (!hasValidRoom) {
+            setTexture(null);
+            setIsLoaded(false);
+            return;
+        }
+
         const loader = new THREE.CubeTextureLoader();
+        loader.setCrossOrigin("anonymous");
         setIsLoaded(false);
 
         const createFallbackTexture = () => {
@@ -73,13 +79,13 @@ const CubemapViewer: React.FC<CubemapViewerProps> = ({
                 const cubeTexture = await new Promise<THREE.CubeTexture>((resolve) => {
                     loader.load(
                         room.textures,
-                        (texture) => {
-                            texture.format = THREE.RGBAFormat;
-                            texture.type = THREE.UnsignedByteType;
-                            texture.minFilter = THREE.LinearFilter;
-                            texture.magFilter = THREE.LinearFilter;
-                            texture.colorSpace = THREE.SRGBColorSpace;
-                            resolve(texture);
+                        (loadedTexture) => {
+                            loadedTexture.format = THREE.RGBAFormat;
+                            loadedTexture.type = THREE.UnsignedByteType;
+                            loadedTexture.minFilter = THREE.LinearFilter;
+                            loadedTexture.magFilter = THREE.LinearFilter;
+                            loadedTexture.colorSpace = THREE.SRGBColorSpace;
+                            resolve(loadedTexture);
                         },
                         undefined,
                         () => resolve(createFallbackTexture())
@@ -97,15 +103,13 @@ const CubemapViewer: React.FC<CubemapViewerProps> = ({
         };
 
         loadTexture();
-    }, [room]);
+    }, [hasValidRoom, onLoad, room]);
 
     useEffect(() => {
-        if (texture) {
-            scene.background = texture;
-        }
-    }, [texture, scene]);
+        scene.background = texture || null;
+    }, [scene, texture]);
 
-    if (!isLoaded || !texture) return null;
+    if (!hasValidRoom || !isLoaded || !texture) return null;
 
     return (
         <>
