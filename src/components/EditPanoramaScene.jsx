@@ -13,7 +13,7 @@ import {
   useUpdatePlanHome,
   useGetByIdPlanHome, usePlanHomes
 } from "@/hooks/modules/plan.home";
-const TEXTURE_BASE = "https://3dtur.backend-salehouse.uz/storage/";
+import { buildStorageUrl } from "@/constants/urls";
 
 export default function EditPanoramaScene() {
   const [searchParams] = useSearchParams();
@@ -88,7 +88,7 @@ export default function EditPanoramaScene() {
     const loader = new THREE.TextureLoader(manager);
 
     return previews.map((relativeUrl) => {
-      const tex = loader.load(TEXTURE_BASE + relativeUrl);
+      const tex = loader.load(buildStorageUrl(relativeUrl));
       tex.colorSpace = THREE.SRGBColorSpace;
 
       return new THREE.MeshBasicMaterial({

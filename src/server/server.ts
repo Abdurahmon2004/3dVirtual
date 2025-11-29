@@ -2,9 +2,9 @@ import axios, { AxiosResponse } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
 import handleError from './handle';
 import utils from '@/helpers/utils';
-const baseurl = "https://3dtur.backend-salehouse.uz/api";
+import { API_BASE_URL } from '@/constants/urls';
 const apiClient = axios.create({
-    baseURL: baseurl,
+    baseURL: API_BASE_URL,
 });
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
