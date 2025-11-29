@@ -8,6 +8,7 @@ import LoadingScreen from "../components/LoadingScreen";
 import CubemapViewer from "../components/CubemapViewer";
 import NavigationControls from "../components/NavigationControls";
 import { useGetByIdHome } from "@/hooks/modules/home";
+import { buildStorageUrl } from "@/constants/urls";
 
 function Vizual() {
   const [currentRoomIndex, setCurrentRoomIndex] = useState(0);
@@ -37,10 +38,7 @@ function Vizual() {
         item.textures?.negy,
         item.textures?.posz,
         item.textures?.negz,
-      ].map(
-        (t: string) =>
-          t && `https://3dtur.backend-salehouse.uz/storage/${t}`
-      );
+      ].map((t: string) => buildStorageUrl(t));
       const hotspots = (item.hotspots || []).map((h: any) => ({
         ...h,
         position: new THREE.Vector3(h.position.x, h.position.y, h.position.z),
