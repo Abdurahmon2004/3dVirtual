@@ -19,6 +19,7 @@ import { RootState } from "@/store";
 import { closeModal } from "@/store/features/blockSlice";
 import { useGetCompaniesInfinite } from "@/hooks/modules/companies";
 import { useCratePlan, useUpdatePlan } from "@/hooks/modules/plan";
+import { buildStorageUrl } from "@/constants/urls";
 
 const MAX_IMAGE_SIZE_KB = 5120;
 const MAX_DOCUMENT_SIZE_KB = 10240;
@@ -137,8 +138,6 @@ export default function PlanModal() {
 
     const resolveEditingPreview = (key: FileFieldName) => {
         if (!editing) return null;
-        const BASE_URL = "https://3dtur.backend-salehouse.uz";
-        
         // Avval editing[key] ni tekshirish - agar obyekt bo'lsa, uning ichidagi url yoki path ni olish
         const imageObj = editing?.[key];
         if (imageObj && typeof imageObj === "object" && !Array.isArray(imageObj)) {
@@ -148,11 +147,11 @@ export default function PlanModal() {
                     return imageObj.url;
                 }
                 const cleanPath = imageObj.url.startsWith("/") ? imageObj.url : `/${imageObj.url}`;
-                return `${BASE_URL}${cleanPath}`;
+                return buildStorageUrl(cleanPath);
             }
             if (imageObj.path && typeof imageObj.path === "string" && imageObj.path.length > 0) {
                 const cleanPath = imageObj.path.startsWith("/") ? imageObj.path : `/${imageObj.path}`;
-                return `${BASE_URL}${cleanPath}`;
+                return buildStorageUrl(cleanPath);
             }
         }
         
@@ -162,7 +161,7 @@ export default function PlanModal() {
                 return imageObj;
             }
             const cleanPath = imageObj.startsWith("/") ? imageObj : `/${imageObj}`;
-            return `${BASE_URL}${cleanPath}`;
+            return buildStorageUrl(cleanPath);
         }
         
         // Agar editing[key] yo'q bo'lsa, editing[key_url] yoki editing[key_path] ni tekshirish
@@ -174,7 +173,7 @@ export default function PlanModal() {
                     return value;
                 }
                 const cleanPath = value.startsWith("/") ? value : `/${value}`;
-                return `${BASE_URL}${cleanPath}`;
+                return buildStorageUrl(cleanPath);
             }
         }
         
